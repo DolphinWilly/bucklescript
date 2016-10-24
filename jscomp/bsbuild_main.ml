@@ -57,6 +57,8 @@ type 'a file_group =
   } 
 
 let main_ninja = "build.ninja"
+let config_file = "bsconfig.json"
+let config_file_bak = "bsconfig.json.bak"
 
 let get_list_string s = 
   Ext_array.to_list_map (fun (x : Bs_json.t) ->
@@ -126,6 +128,45 @@ let output_build  ?(implicit_deps=[]) ?(outputs=[]) ?(inputs=[]) ~output ~input 
   end;
   output_string oc "\n"
 
+let phony ~inputs ~output oc = 
+  output_build oc ~output ~input:"" ~inputs ~rule:"phony"
+
+let output_kv key value oc  =
+  output_string oc key ; 
+  output_string oc " = "; 
+  output_string oc value ; 
+  output_string oc "\n"
+
+let output_kvs kvs oc = 
+  List.iter (fun (k,v) -> output_kv k v oc) kvs 
+
+module Rules = struct 
+  let define
+      ~command
+      ?(description = "Building ${out}")
+      name 
+       = 
+       object(self) 
+         val mutable used = false
+         method private print oc =
+           if not used then 
+             begin 
+               output_string oc "rule "; output_string oc name ; output_string oc "\n";
+               output_string oc "  command = "; output_string oc command; output_string oc "\n";
+               output_string oc "  description = " ; output_string oc description; output_string oc "\n";
+               used <- true
+             end
+           else ()
+         method name oc  =
+           self#print oc ;
+           name 
+       end      
+     let build_ast =
+       define
+         ~command:"${bsc} ${pp_flags} ${ppx_flags} ${bsc_parsing_flags} -c -o ${out} -bs-syntax-only -bs-binary-ast ${in}"
+        "build_ast" 
+
+end
 let output_ninja 
     bsc
     bsbuild
@@ -178,20 +219,21 @@ let output_ninja
     let all_deps = ref [] in
     let all_cmis = ref [] in 
     let () = 
-      output_string oc "bsc = "; output_string oc bsc ; output_string oc "\n";
-      output_string oc "bsc_computed_flags = "; output_string oc bsc_computed_flags ; output_string oc "\n";
-      output_string oc "bsc_parsing_flags = "; output_string oc bsc_parsing_flags ; output_string oc "\n";
-      output_string oc "bsbuild = "; output_string oc bsbuild ; output_string oc "\n";
-      output_string oc "bsdep = "; output_string oc bsdep ; output_string oc "\n";
-      output_string oc "ocamllex = "; output_string oc ocamllex ; output_string oc "\n";
-      output_string oc "ppx_flags = "; output_string oc ppx_flags ; output_string oc "\n";
-      output_string oc "build_output_prefix = "; output_string oc build_output_prefix ; output_string oc "\n";
-      output_string oc "builddir = "; output_string oc build_output_prefix ; output_string oc "\n";
+      oc 
+      |>
+      output_kvs [ "bsc", bsc ; 
+                   "bsc_computed_flags", bsc_computed_flags ; 
+                   "bsc_parsing_flags", bsc_parsing_flags ; 
+                   "bsbuild", bsbuild; 
+                   "bsdep", bsdep; 
+                   "ocamllex", ocamllex;
+                   "ppx_flags", ppx_flags;
+                   "build_output_prefix", build_output_prefix ;
+                   "builddir", build_output_prefix
+                 ];
       output_string oc {|
 # for ast building, we remove most flags with respect to -I 
-rule build_ast
-  command = ${bsc} ${pp_flags} ${ppx_flags} ${bsc_parsing_flags} -c -o ${out} -bs-syntax-only -bs-binary-ast ${in}
-  description = Building ast  ${out}
+
 rule build_ast_from_reason_impl
   command = ${bsc} -pp refmt ${ppx_flags} ${bsc_parsing_flags} -c -o ${out} -bs-syntax-only -bs-binary-ast -impl ${in}     
   description = Building ast from reason re ${out}
@@ -237,37 +279,23 @@ rule copy_resources
         let spit_out_ml (kind : [`Ml | `Re ])  file filename_sans_extension = 
           let input = file in 
           let output_file_sans_extension = build_output_prefix // filename_sans_extension in
-          let output_mlast = output_file_sans_extension  ^ Literals.suffix_mlast 
-          in 
-          let output_mlastd = output_file_sans_extension ^ Literals.suffix_mlastd
-          in
+          let output_mlast = output_file_sans_extension  ^ Literals.suffix_mlast in 
+          let output_mlastd = output_file_sans_extension ^ Literals.suffix_mlastd in
           let output_cmi = output_file_sans_extension ^ Literals.suffix_cmi in 
           let output_cmj =  output_file_sans_extension ^ Literals.suffix_cmj in 
-          let rule = if kind = `Ml then "build_ast" else "build_ast_from_reason_impl" in 
-          output_build 
-              ~output:output_mlast
-              ~input
-              ~rule oc 
-          ;
+          let rule = if kind = `Ml then (Rules.build_ast#name oc) else "build_ast_from_reason_impl" in 
           (* output should always be marked explicitly,
              otherwise the build system can not figure out clearly
              however, for the command we don't need pass `-o`
           *)
 
-          output_build 
-            ~output:output_mlastd
-            ~input:output_mlast
-            ~rule:"build_deps" oc ;
+          output_build oc ~output:output_mlast ~input ~rule ;
+          output_build oc ~output:output_mlastd ~input:output_mlast ~rule:"build_deps" ;
           all_deps := output_mlastd :: !all_deps;
           let rule_name , cm_outputs, deps = 
-            if mli = Mli_empty then "build_cmj_only", [  output_cmi]  , []
+            if mli = Mli_empty then "build_cmj_only", [  output_cmi]  , [] 
             else "build_cmj_cmi", [], [output_cmi]  in  
-          output_build
-            ~output:output_cmj
-            ~outputs:cm_outputs
-            ~input:output_mlast 
-            ~implicit_deps:deps 
-            ~rule:rule_name oc 
+          output_build oc ~output:output_cmj ~outputs:cm_outputs ~input:output_mlast ~implicit_deps:deps ~rule:rule_name 
         in 
 
         begin match ml with 
@@ -277,27 +305,32 @@ rule copy_resources
           | Re re_file -> 
             let filename_sans_extension = Filename.chop_extension re_file in 
             spit_out_ml `Re re_file filename_sans_extension
+          | Ml_empty -> ()
+        end;
+        let spit_out_mli (kind : [`Mli | `Rei ])  mli_file filename_sans_extension = 
+            (* let filename_sans_extension = Filename.chop_extension ml_file in  *)
 
-          | Ml_empty -> () end;
-        let spit_out_mli (kind : [`Mli | `Rei ])  mli_file filename = 
-          if kind = `Mli then 
-            output_string oc (Printf.sprintf "build %s.mliast : build_ast %s\n" 
-                                (build_output_prefix // filename)
-                                ( mli_file))
-          else
-            output_string oc (Printf.sprintf "build %s.mliast : build_ast_from_reason_intf %s\n" 
-                                (build_output_prefix // filename) 
-                                ( mli_file));
-          output_string oc (Printf.sprintf "build %s.mliast.d : build_deps %s.mliast\n"
-                              (build_output_prefix // filename )
-                              (build_output_prefix // filename));
-          output_string oc (Printf.sprintf "build %s.cmi : build_cmi %s.mliast | %s.mliast.d\n"
-                              (build_output_prefix // filename)
-                              (build_output_prefix // filename)
-                              (build_output_prefix // filename)
-                           );
-          all_cmis := (build_output_prefix // filename ^  Literals.suffix_cmi) :: !all_cmis ; 
-          all_deps :=  build_output_prefix // (filename ^ Literals.suffix_mliastd) :: !all_deps in 
+          let output_file_sans_extension = build_output_prefix // filename_sans_extension in
+          let output_mliast = output_file_sans_extension ^ Literals.suffix_mliast in 
+          let output_mliastd = output_file_sans_extension ^ Literals.suffix_mliastd in
+          let output_cmi = output_file_sans_extension ^ Literals.suffix_cmi in 
+          let rule = if kind = `Mli then (Rules.build_ast#name oc)  else "build_ast_from_reason_intf" in 
+          output_build oc 
+            ~output:output_mliast
+            ~input:mli_file
+            ~rule 
+          ;
+          output_build oc 
+            ~output:output_mliastd
+            ~input:output_mliast 
+            ~rule:"build_deps"  ; 
+          output_build oc 
+            ~output:output_cmi 
+            ~input:output_mliast 
+            ~implicit_deps:[output_mliastd]
+            ~rule: "build_cmi";
+          all_cmis := output_cmi :: !all_cmis ; 
+          all_deps := output_mliastd :: !all_deps in 
 
         begin match mli with 
           | Mli mli_file  -> 
@@ -314,9 +347,10 @@ rule copy_resources
               let filename = Filename.chop_extension mll_file in
               if ml = Ml_empty then 
                 spit_out_ml `Ml (filename ^ Literals.suffix_ml) filename;
-              output_string oc (Printf.sprintf "build %s.ml : build_ml_from_mll %s.mll\n"
-                                  (build_output_prefix // filename)
-                                  filename);
+              output_build oc
+                ~output:(build_output_prefix // filename ^ Literals.suffix_ml)
+                ~input:mll_file 
+                ~rule: "build_ml_from_mll" ;  
               (* actually we would prefer generators in source ?
                  generator are divided into two categories:
                  1. not system dependent (ocamllex,ocamlyacc)
@@ -327,29 +361,26 @@ rule copy_resources
       );
     static_resources 
     |> List.iter (fun x -> 
-        output_string oc 
-          (Printf.sprintf "build %s : copy_resources %s\n"
-             (build_output_prefix // x) x 
-          );
-        all_deps := (build_output_prefix // x) :: !all_deps
+        let output = (build_output_prefix//x) in
+        output_build oc
+          ~output
+          ~input:x
+          ~rule:"copy_resources";
+
+        all_deps := output :: !all_deps
       )
     ;
     output_string oc  {|
 rule reload
       command = ${bsbuild} -init
 |};
-    output_string oc ("build build.ninja : reload | bsconfig.json\n" );
 
-    output_string oc (Printf.sprintf "build config : phony %s\n" 
-                        (String.concat " "   !all_deps)) ;
-    output_string oc (Printf.sprintf "build cmis : phony %s\n"
-                        (String.concat " " !all_cmis)
-                     );
+    output_build oc ~output:main_ninja ~input:config_file ~rule:"reload" ; 
+    phony oc ~output:"config" ~inputs:!all_deps;
+    phony oc ~output:"cmis" ~inputs:!all_cmis ; 
     close_out oc;
   end
 
-let config_file = "bsconfig.json"
-let config_file_bak = "bsconfig.json.bak"
 
 let (|?)  m (key, cb) =
     m  |> Bs_json.test key cb 
