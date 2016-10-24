@@ -1,6 +1,41 @@
 {
     "$schema": "http://json-schema.org/draft-04/schema#",
     "definitions" : {
+        "module-format" : {
+            "enum": [
+                "commonjs",
+                "amdjs",
+                "goog"
+            ]
+        },
+        "module-output" : {
+            "type": "array",
+            "items": [ 
+                { "$ref" : "#/definitions/module-format"},
+                { 
+                    "type" : "string",
+                    "description": "output path, if not set, it will be `lib/js/commonjs`, `lib/js/amdjs` or `lib/js/goog` "
+                }
+            ]            
+        },
+        "package-spec" : {
+            "oneOf": [
+                {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/module-output"
+                    },
+                    "description": "package output"
+                },
+                {
+                    "enum": [
+                        "all"
+                    ],
+                    "description": "All supported format with default output"
+                }
+            ]
+
+        },
         "sourceItem" : {
             "title" : "sourceItem",
             "properties": {
@@ -19,6 +54,32 @@
                   "items" : {
                       "$ref" : "#/definitions/sourceItem"
                   }
+              },
+              "group" : {
+                  "oneOf": [
+                  {
+                  "type" : "string",
+                  "description": "A _unique_ name for each directory to refer as an internal dependency later"
+                  },
+                  {
+                      "properties": {
+                        "name" : {
+                            "type" : "string"
+                        },
+                        "hierachy" : {
+                            "type" : "boolean",
+                            "description": "When true, all subdirs are considered as a whole as dependency"
+                        }     
+                      }
+                  }
+                  ]
+              },
+              "internal-depends" : {
+                  "type" : "array",
+                  "items": {
+                      "type": "string",
+                      "description": "internal dependencies, if unspecified, all existing listed source files are considered potential dependencies"
+                  }
               }  
             },
             "required": ["dir","files"] 
@@ -31,6 +92,7 @@
         }
     },
     "title": "BuckleScript build configuration",
+    "description": "All paths are required for Unix format, the build tool will do conversion internally",
     "type": "object",
     "properties" : {
         "version" : {
@@ -43,6 +105,7 @@
         },        
         "ocaml-config" : {
             "title": "OCaml Configuration format",
+
             "properties": {
                 "bsdep": {
                     "type": "string",
@@ -54,6 +117,9 @@
                 },
                 "bsc-flags" : {
                     "$ref" : "#/definitions/stringArray"
+                },
+                "package-spec" : {
+                    "$ref" : "#/definitions/package-spec"
                 },
                 "bsbuild": {
                     "type": "string",

@@ -44,17 +44,19 @@ module Schemas = struct
   let ocamllex = "ocamllex"
   let bsc_flags = "bsc-flags"
 end
-type module_info = Binary_cache.module_info 
+
+
+
+(* Key is the path *)
+
+
+
 type 'a file_group = 
   { dir : string ;
     sources : 'a
   } 
 
 let main_ninja = "build.ninja"
-let (//) (x : string)  y =
-  if x = Filename.current_dir_name then y else 
-  if y = Filename.current_dir_name then x else 
-    Filename.concat x y
       
 module Default = struct
   let bsc = ref  "bsc.exe"
@@ -70,54 +72,18 @@ module Default = struct
   let bs_file_groups = ref []
 end
 
+(* More tests needed *)
+let convert_unix_path_to_windows p = 
+  String.map (function '/' ->'\\' | c -> c ) p 
+let convert_path  = 
+  if Sys.unix then fun p -> p else 
+  if Sys.win32 || Sys.cygwin then convert_unix_path_to_windows
+  else failwith ("Unknown OS :" ^ Sys.os_type)
+(* we only need convert the path in the begining*)
 
 
 
-
-
-(* TODO check duplication *)
-let module_info_of_ml exist ml : module_info =
-  match exist with 
-  | None -> { ml  = Ml ml ; mli = Mli_empty ; mll = None }
-  | Some x -> { x with ml = Ml ml}
-
-let module_info_of_re exist ml : module_info =
-  match exist with 
-  | None -> { ml  = Re ml ; mli = Mli_empty ; mll = None }
-  | Some x -> { x with ml = Re ml} 
-
-let module_info_of_mli exist mli : module_info = 
-  match exist with 
-  | None -> { mli  = Mli mli ; ml = Ml_empty ; mll = None }
-  | Some x -> { x with mli = Mli mli} 
-
-let module_info_of_rei exist mli : module_info = 
-  match exist with 
-  | None -> { mli  = Rei mli ; ml = Ml_empty ; mll = None }
-  | Some x -> { x with mli = Rei mli} 
-
-let module_info_of_mll exist mll : module_info = 
-  match exist with 
-  | None -> { mll  = Some mll ; ml = Ml_empty ; mli = Mli_empty }
-  | Some x -> { x with mll = Some mll} 
-
-
-let map_update ?dir map  name = 
-  let prefix  x = match dir with None -> x | Some v -> v // x in
-  let module_name = Ext_filename.module_name_of_file name in 
-  let aux v name = 
-    if Filename.check_suffix name ".ml" then module_info_of_ml v @@ prefix name  else
-    if Filename.check_suffix name ".mll" then module_info_of_mll v @@ prefix  name else 
-    if Filename.check_suffix name ".mli" then  module_info_of_mli v @@ prefix name else 
-    if Filename.check_suffix name ".re" then  module_info_of_re v @@ prefix name else 
-    if Filename.check_suffix name ".rei" then  module_info_of_rei v @@ prefix name else 
-      assert false   in 
-  match String_map.find module_name map with 
-  | exception Not_found 
-    -> String_map.add module_name (aux None name) map 
-  | v -> 
-    String_map.add module_name (aux (Some v) name)  map
-
+let (//) = Binary_cache.simple_concat
 
 let output_ninja 
     bsc
@@ -225,7 +191,7 @@ rule copy_resources
     in
 
     bs_files
-    |> String_map.iter (fun module_name ({mli; ml; mll } : module_info) -> 
+    |> String_map.iter (fun module_name ({mli; ml; mll } : Binary_cache.module_info) -> 
         let spit_out_ml (kind : [`Ml | `Re ])  file filename_sans_extension = 
           if kind = `Ml then 
             output_string oc 
@@ -326,7 +292,7 @@ rule copy_resources
 rule reload
       command = ${bsbuild} -init
 |};
-    output_string oc (Printf.sprintf "build build.ninja : reload | bsconfig.json\n" );
+    output_string oc ("build build.ninja : reload | bsconfig.json\n" );
 
     output_string oc (Printf.sprintf "build config : phony %s\n" 
                         (String.concat " "   !all_deps)) ;
@@ -342,45 +308,43 @@ let config_file_bak = "bsconfig.json.bak"
 let (|?)  m (key, cb) =
     m  |> Json_lexer.test key cb 
 
+let print_arrays file_array oc offset  =
+  let indent = String.make offset ' ' in 
+  let p_str s = 
+    output_string oc indent ; 
+    output_string oc s ;
+    output_string oc "\n"
+  in
+  match file_array with 
+  | []
+    -> output_string oc "[ ]\n"
+  | first::rest 
+    -> 
+    output_string oc "[ \n";
+    p_str ("\"" ^ first ^ "\"");
+    List.iter 
+      (fun f -> 
+         p_str (", \"" ^f ^ "\"")
+      ) rest;
+    p_str "]" 
+(* we need add a new line in the end,
+   otherwise it will be idented twice
+*)
+
 let rec handle_list_files update_queue dir s loc_start loc_end =  
   if Array.length s  = 0 then 
     begin 
       let files_array = Sys.readdir dir  in 
       let files, file_array =
         Array.fold_left (fun (acc, f) name -> 
-            if Filename.check_suffix name ".ml" ||
-               Filename.check_suffix name ".mll" ||
-               Filename.check_suffix name ".mli" ||
-               Filename.check_suffix name ".re" ||
-               Filename.check_suffix name ".rei" then 
-              (map_update ~dir acc name , name :: f)
-            else (acc,f)
+            let new_acc = Binary_cache.map_update ~dir acc name in 
+            if new_acc == acc then 
+              new_acc, f 
+            else new_acc, name :: f 
           ) (String_map.empty, []) files_array in 
       update_queue :=
         {Ext_file_pp.loc_start ;
-         loc_end; action = (`print (fun oc offset -> 
-            let indent = String.make offset ' ' in 
-            let p_str s = 
-              output_string oc indent ; 
-              output_string oc s ;
-              output_string oc "\n"
-            in
-            match file_array with 
-            | []
-              -> output_string oc "[ ]\n"
-            | first::rest 
-              -> 
-              output_string oc "[ \n";
-              p_str ("\"" ^ first ^ "\"");
-              List.iter 
-                (fun f -> 
-                   p_str (", \"" ^f ^ "\"")
-                ) rest;
-              p_str "]" 
-              (* we need add a new line in the end,
-                 otherwise it will be idented twice
-              *)
-          ))} :: !update_queue;
+         loc_end; action = (`print (print_arrays file_array))} :: !update_queue;
        files
     end
 
@@ -388,7 +352,7 @@ let rec handle_list_files update_queue dir s loc_start loc_end =
      Array.fold_left (fun acc s ->
         match s with 
         | `Str s -> 
-          map_update ~dir acc s
+          Binary_cache.map_update ~dir acc s
         | _ -> acc
       ) String_map.empty s
 

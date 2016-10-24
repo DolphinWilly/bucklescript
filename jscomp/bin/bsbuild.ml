@@ -1,553 +1,3 @@
-module String_map : sig 
-#1 "string_map.mli"
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-
-
-
-
-
-
-
-include Map.S with type key = string 
-
-val of_list : (string * 'a) list -> 'a t
-
-val add_list : (string * 'b) list -> 'b t -> 'b t
-
-val find_opt : string -> 'a t -> 'a option
-
-val find_default : string -> 'a -> 'a t -> 'a
-
-val print :  (Format.formatter -> 'a -> unit) -> Format.formatter ->  'a t -> unit
-
-end = struct
-#1 "string_map.ml"
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-
-
-
-
-
-
-
-include Map.Make(String)
-
-let of_list (xs : ('a * 'b) list ) = 
-  List.fold_left (fun acc (k,v) -> add k v acc) empty xs 
-
-let add_list (xs : ('a * 'b) list ) init = 
-  List.fold_left (fun acc (k,v) -> add k v acc) init xs 
-
-
-let find_opt k m =
-  match find k m with 
-  | exception v -> None
-  | u -> Some u
-
-let find_default k default m =
-  match find k m with 
-  | exception v -> default 
-  | u -> u
-
-let print p_v fmt  m =
-  iter (fun k v -> 
-      Format.fprintf fmt "@[%s@ ->@ %a@]@." k p_v v 
-    ) m
-
-
-
-end
-module Binary_cache : sig 
-#1 "binary_cache.mli"
-
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-type ml_kind =
-  | Ml of string 
-  | Re of string 
-  | Ml_empty
-type mli_kind = 
-  | Mli of string 
-  | Rei of string
-  | Mli_empty
-
-type module_info = 
-  {
-    mli : mli_kind ; 
-    ml : ml_kind ; 
-    mll : string option 
-  }
-
-val write_build_cache : string -> module_info String_map.t -> unit
-
-val read_build_cache : string -> module_info String_map.t
-
-val bsbuild_cache : string
-
-end = struct
-#1 "binary_cache.ml"
-
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-
-type ml_kind =
-  | Ml of string 
-  | Re of string 
-  | Ml_empty
-type mli_kind = 
-  | Mli of string 
-  | Rei of string
-  | Mli_empty
-
-type module_info = 
-  {
-    mli : mli_kind ; 
-    ml : ml_kind ; 
-    mll : string option 
-  }
-
-let module_info_magic_number = "BSBUILD20161012"
-
-let write_build_cache bsbuild (bs_files : module_info String_map.t)  = 
-  let oc = open_out_bin bsbuild in 
-  output_string oc module_info_magic_number ;
-  output_value oc bs_files ;
-  close_out oc 
-
-let read_build_cache bsbuild : module_info String_map.t = 
-  let ic = open_in bsbuild in 
-  let buffer = really_input_string ic (String.length module_info_magic_number) in
-  assert(buffer = module_info_magic_number); 
-  let data : module_info String_map.t = input_value ic in 
-  close_in ic ;
-  data 
-
-
-let bsbuild_cache = ".bsbuild"
-
-end
-module Ext_array : sig 
-#1 "ext_array.mli"
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-
-
-
-
-
-(** Some utilities for {!Array} operations *)
-
-val reverse_in_place : 'a array -> unit
-
-val reverse_of_list : 'a list -> 'a array
-
-val filter : ('a -> bool) -> 'a array -> 'a array
-
-val filter_map : ('a -> 'b option) -> 'a array -> 'b array
-
-val range : int -> int -> int array
-
-val map2i : (int -> 'a -> 'b -> 'c ) -> 'a array -> 'b array -> 'c array
-
-val to_list_map : ('a -> 'b option) -> 'a array -> 'b list 
-
-val rfind_with_index : 'a array -> ('a -> 'b -> bool) -> 'b -> int
-
-val rfind_and_split : 
-  'a array ->
-  ('a -> 'b -> bool) ->
-  'b -> [ `No_split | `Split of 'a array * 'a array ]
-
-end = struct
-#1 "ext_array.ml"
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- * 
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- * 
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-
-
-
-
-
-
-let reverse_in_place a =
-  let aux a i len =
-    if len=0 then ()
-    else
-      for k = 0 to (len-1)/2 do
-        let t = Array.unsafe_get a (i+k) in
-        Array.unsafe_set a (i+k) ( Array.unsafe_get a (i+len-1-k));
-        Array.unsafe_set a (i+len-1-k) t;
-      done
-  in
-  aux a 0 (Array.length a)
-
-
-let reverse_of_list =  function
-  | [] -> [||]
-  | hd::tl as l ->
-    let len = List.length l in
-    let a = Array.make len hd in
-    let rec fill i = function
-      | [] -> a
-      | hd::tl -> Array.unsafe_set a (len - i - 2) hd; fill (i+1) tl in
-    fill 0 tl
-
-let filter f a =
-  let arr_len = Array.length a in
-  let rec aux acc i =
-    if i = arr_len 
-    then reverse_of_list acc 
-    else
-      let v = Array.unsafe_get a i in
-      if f  v then 
-        aux (v::acc) (i+1)
-      else aux acc (i + 1) 
-  in aux [] 0
-
-
-let filter_map (f : _ -> _ option) a =
-  let arr_len = Array.length a in
-  let rec aux acc i =
-    if i = arr_len 
-    then reverse_of_list acc 
-    else
-      let v = Array.unsafe_get a i in
-      match f  v with 
-      | Some v -> 
-        aux (v::acc) (i+1)
-      | None -> 
-        aux acc (i + 1) 
-  in aux [] 0
-
-let range from to_ =
-  if from > to_ then invalid_arg "Ext_array.range"  
-  else Array.init (to_ - from + 1) (fun i -> i + from)
-
-let map2i f a b = 
-  let len = Array.length a in 
-  if len <> Array.length b then 
-    invalid_arg "Ext_array.map2i"  
-  else
-    Array.mapi (fun i a -> f i  a ( Array.unsafe_get b i )) a 
-
-let to_list_map f a =
-  let rec tolist i res =
-    if i < 0 then res else
-      let v = Array.unsafe_get a i in
-      tolist (i - 1)
-        (match f v with
-         | Some v -> v :: res
-         | None -> res) in
-  tolist (Array.length a - 1) []
-
-(**
-{[
-# rfind_with_index [|1;2;3|] (=) 2;;
-- : int = 1
-# rfind_with_index [|1;2;3|] (=) 1;;
-- : int = 0
-# rfind_with_index [|1;2;3|] (=) 3;;
-- : int = 2
-# rfind_with_index [|1;2;3|] (=) 4;;
-- : int = -1
-]}
-*)
-let rfind_with_index arr cmp v = 
-  let len = Array.length arr in 
-  let rec aux i = 
-    if i < 0 then i
-    else if  cmp (Array.unsafe_get arr i) v then i
-    else aux (i - 1) in 
-  aux (len - 1)
-
-let rfind_and_split arr cmp v = 
-  let i = rfind_with_index arr cmp v in 
-  if  i < 0 then 
-    `No_split 
-  else 
-    `Split (Array.sub arr 0 i , Array.sub arr  (i + 1 ) (Array.length arr - i - 1 ))
-
-end
-module Ext_file_pp : sig 
-#1 "ext_file_pp.mli"
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-type action = 
-  [
-    `skip
-  | `print of (out_channel -> int -> unit)
-  ]
-
-
-type interval = {
-  loc_start : Lexing.position ; 
-  loc_end : Lexing.position ; 
-  action : action 
-}
-
-val process_wholes : 
-  interval list ->
-  int -> ?line_directive:string -> in_channel -> out_channel -> unit
-
-val cpp_process_file : 
-  string -> (Lexing.position * Lexing.position) list -> out_channel -> unit
-
-
-(** Assume that there is no overlapp *)
-val interval_compare : 
-  interval -> interval -> int
-
-end = struct
-#1 "ext_file_pp.ml"
-(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU Lesser General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * In addition to the permissions granted to you by the LGPL, you may combine
- * or link a "work that uses the Library" with a publicly distributed version
- * of this file to produce a combined library or application, then distribute
- * that combined work under the terms of your choosing, with no requirement
- * to comply with the obligations normally placed on you by section 4 of the
- * LGPL version 3 (or the corresponding section of a later version of the LGPL
- * should you choose to use a later version).
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU Lesser General Public License for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program; if not, write to the Free Software
- * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
-
-type action = 
-  [
-    `skip
-  | `print of (out_channel -> int -> unit)
-  ]
-
-
-type interval = {
-  loc_start : Lexing.position ; 
-  loc_end : Lexing.position ; 
-  action : action 
-}
-
-let interval_compare x y = 
-  Pervasives.compare (x.loc_start.pos_cnum : int) y.loc_start.pos_cnum
-
-let process_wholes 
-    (whole_intervals : interval list ) 
-    file_size
-    ?line_directive ic oc 
-  = 
-  let buf = Buffer.create 4096 in 
-  let rec aux (cur, line, offset)  wholes = 
-    seek_in ic cur ;
-    begin match line_directive with 
-      | Some fname -> 
-        output_string oc "# ";
-        output_string oc  (string_of_int line);
-        output_string oc " \"";
-        output_string oc fname; (* TOOD escape ? *)
-        output_string oc "\"\n";
-      | None -> ()
-    end;
-    if offset <> 0 then 
-      begin 
-        output_string oc (String.make offset ' ')
-      end; 
-    let print next = 
-      Buffer.add_channel buf ic (next - cur) ;
-      Buffer.output_buffer oc buf ; 
-      Buffer.clear buf 
-    in 
-    match wholes with 
-    | [] -> print file_size
-    | {
-      loc_start = 
-        {Lexing.pos_cnum = start   };
-      loc_end  = {Lexing.pos_cnum = stop; pos_bol ; pos_lnum} ;
-      action 
-    } :: xs  -> 
-      print start ;
-      let offset = stop - pos_bol in
-      begin match action with 
-      | `skip -> ()
-      | `print f -> f oc offset 
-      end;
-      aux (stop, pos_lnum, offset) xs 
-  in 
-    aux (0, 1, 0) whole_intervals
-
-
-let cpp_process_file fname whole_intervals oc = 
-  let ic = open_in_bin fname in
-  let file_size = in_channel_length ic in 
-  process_wholes ~line_directive:fname 
-    (List.map (fun (x,y) -> {loc_start = x ; loc_end = y; action = `skip}) whole_intervals)
-    file_size   ic oc ;
-  close_in ic 
-
-end
 module Ext_pervasives : sig 
 #1 "ext_pervasives.mli"
 (* Copyright (C) 2015-2016 Bloomberg Finance L.P.
@@ -1489,6 +939,8 @@ val chop_extension_if_any : string -> string
 
 val absolute_path : string -> string
 
+val module_name_of_file_if_any : string -> string
+
 end = struct
 #1 "ext_filename.ml"
 (* Copyright (C) 2015-2016 Bloomberg Finance L.P.
@@ -1710,11 +1162,633 @@ let module_name_of_file file =
     String.capitalize 
       (Filename.chop_extension @@ Filename.basename file)  
 
+let module_name_of_file_if_any file = 
+    String.capitalize 
+      (chop_extension_if_any @@ Filename.basename file)  
+
+
 (** For win32 or case insensitve OS 
     [".cmj"] is the same as [".CMJ"]
   *)
 (* let has_exact_suffix_then_chop fname suf =  *)
   
+
+end
+module String_map : sig 
+#1 "string_map.mli"
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+
+
+
+
+
+
+
+include Map.S with type key = string 
+
+val of_list : (string * 'a) list -> 'a t
+
+val add_list : (string * 'b) list -> 'b t -> 'b t
+
+val find_opt : string -> 'a t -> 'a option
+
+val find_default : string -> 'a -> 'a t -> 'a
+
+val print :  (Format.formatter -> 'a -> unit) -> Format.formatter ->  'a t -> unit
+
+end = struct
+#1 "string_map.ml"
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+
+
+
+
+
+
+
+include Map.Make(String)
+
+let of_list (xs : ('a * 'b) list ) = 
+  List.fold_left (fun acc (k,v) -> add k v acc) empty xs 
+
+let add_list (xs : ('a * 'b) list ) init = 
+  List.fold_left (fun acc (k,v) -> add k v acc) init xs 
+
+
+let find_opt k m =
+  match find k m with 
+  | exception v -> None
+  | u -> Some u
+
+let find_default k default m =
+  match find k m with 
+  | exception v -> default 
+  | u -> u
+
+let print p_v fmt  m =
+  iter (fun k v -> 
+      Format.fprintf fmt "@[%s@ ->@ %a@]@." k p_v v 
+    ) m
+
+
+
+end
+module Binary_cache : sig 
+#1 "binary_cache.mli"
+
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+type ml_kind =
+  | Ml of string 
+  | Re of string 
+  | Ml_empty
+type mli_kind = 
+  | Mli of string 
+  | Rei of string
+  | Mli_empty
+
+type module_info = 
+  {
+    mli : mli_kind ; 
+    ml : ml_kind ; 
+    mll : string option 
+  }
+
+type t = module_info String_map.t 
+val write_build_cache : string -> t -> unit
+
+val read_build_cache : string -> t
+
+val bsbuild_cache : string
+
+val simple_concat : string -> string -> string
+
+
+
+(** if not added, it is guaranteed the reference equality will 
+    be held
+*)
+val map_update : ?dir:string -> t -> string -> t
+
+end = struct
+#1 "binary_cache.ml"
+
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+
+type ml_kind =
+  | Ml of string 
+  | Re of string 
+  | Ml_empty
+type mli_kind = 
+  | Mli of string 
+  | Rei of string
+  | Mli_empty
+
+type module_info = 
+  {
+    mli : mli_kind ; 
+    ml : ml_kind ; 
+    mll : string option 
+  }
+
+type t = module_info String_map.t 
+
+let module_info_magic_number = "BSBUILD20161012"
+
+let write_build_cache bsbuild (bs_files : module_info String_map.t)  = 
+  let oc = open_out_bin bsbuild in 
+  output_string oc module_info_magic_number ;
+  output_value oc bs_files ;
+  close_out oc 
+
+let read_build_cache bsbuild : module_info String_map.t = 
+  let ic = open_in bsbuild in 
+  let buffer = really_input_string ic (String.length module_info_magic_number) in
+  assert(buffer = module_info_magic_number); 
+  let data : module_info String_map.t = input_value ic in 
+  close_in ic ;
+  data 
+
+
+let bsbuild_cache = ".bsbuild"
+
+
+(* TODO check duplication *)
+let module_info_of_ml exist ml : module_info =
+  match exist with 
+  | None -> { ml  = Ml ml ; mli = Mli_empty ; mll = None }
+  | Some x -> { x with ml = Ml ml}
+
+let module_info_of_re exist ml : module_info =
+  match exist with 
+  | None -> { ml  = Re ml ; mli = Mli_empty ; mll = None }
+  | Some x -> { x with ml = Re ml} 
+
+let module_info_of_mli exist mli : module_info = 
+  match exist with 
+  | None -> { mli  = Mli mli ; ml = Ml_empty ; mll = None }
+  | Some x -> { x with mli = Mli mli} 
+
+let module_info_of_rei exist mli : module_info = 
+  match exist with 
+  | None -> { mli  = Rei mli ; ml = Ml_empty ; mll = None }
+  | Some x -> { x with mli = Rei mli} 
+
+let module_info_of_mll exist mll : module_info = 
+  match exist with 
+  | None -> { mll  = Some mll ; ml = Ml_empty ; mli = Mli_empty }
+  | Some x -> { x with mll = Some mll} 
+
+let simple_concat (x : string)  y =
+  if x = Filename.current_dir_name then y else 
+  if y = Filename.current_dir_name then x else 
+    Filename.concat x y
+
+let map_update ?dir (map : t)  name : t  = 
+  let prefix   = 
+    match dir with
+    | None -> fun x ->  x
+    | Some v -> fun x ->  simple_concat v x in
+  let module_name = Ext_filename.module_name_of_file_if_any name in 
+  let handle name v cb =
+    String_map.add module_name
+      (cb v (prefix name ) ) map 
+  in 
+  let aux v name = 
+    if Filename.check_suffix name ".ml" then handle name  v  module_info_of_ml  else
+    if Filename.check_suffix name ".mll" then handle name  v  module_info_of_mll  else 
+    if Filename.check_suffix name ".mli" then handle name  v  module_info_of_mli else 
+    if Filename.check_suffix name ".re" then handle name v module_info_of_re else 
+    if Filename.check_suffix name ".rei" then handle name v module_info_of_rei else 
+      map    in 
+  match String_map.find module_name map with 
+  | exception Not_found 
+    -> aux None name 
+  | v -> 
+    aux (Some v ) name
+
+end
+module Ext_array : sig 
+#1 "ext_array.mli"
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+
+
+
+
+
+(** Some utilities for {!Array} operations *)
+
+val reverse_in_place : 'a array -> unit
+
+val reverse_of_list : 'a list -> 'a array
+
+val filter : ('a -> bool) -> 'a array -> 'a array
+
+val filter_map : ('a -> 'b option) -> 'a array -> 'b array
+
+val range : int -> int -> int array
+
+val map2i : (int -> 'a -> 'b -> 'c ) -> 'a array -> 'b array -> 'c array
+
+val to_list_map : ('a -> 'b option) -> 'a array -> 'b list 
+
+val rfind_with_index : 'a array -> ('a -> 'b -> bool) -> 'b -> int
+
+val rfind_and_split : 
+  'a array ->
+  ('a -> 'b -> bool) ->
+  'b -> [ `No_split | `Split of 'a array * 'a array ]
+
+end = struct
+#1 "ext_array.ml"
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+
+
+
+
+
+
+let reverse_in_place a =
+  let aux a i len =
+    if len=0 then ()
+    else
+      for k = 0 to (len-1)/2 do
+        let t = Array.unsafe_get a (i+k) in
+        Array.unsafe_set a (i+k) ( Array.unsafe_get a (i+len-1-k));
+        Array.unsafe_set a (i+len-1-k) t;
+      done
+  in
+  aux a 0 (Array.length a)
+
+
+let reverse_of_list =  function
+  | [] -> [||]
+  | hd::tl as l ->
+    let len = List.length l in
+    let a = Array.make len hd in
+    let rec fill i = function
+      | [] -> a
+      | hd::tl -> Array.unsafe_set a (len - i - 2) hd; fill (i+1) tl in
+    fill 0 tl
+
+let filter f a =
+  let arr_len = Array.length a in
+  let rec aux acc i =
+    if i = arr_len 
+    then reverse_of_list acc 
+    else
+      let v = Array.unsafe_get a i in
+      if f  v then 
+        aux (v::acc) (i+1)
+      else aux acc (i + 1) 
+  in aux [] 0
+
+
+let filter_map (f : _ -> _ option) a =
+  let arr_len = Array.length a in
+  let rec aux acc i =
+    if i = arr_len 
+    then reverse_of_list acc 
+    else
+      let v = Array.unsafe_get a i in
+      match f  v with 
+      | Some v -> 
+        aux (v::acc) (i+1)
+      | None -> 
+        aux acc (i + 1) 
+  in aux [] 0
+
+let range from to_ =
+  if from > to_ then invalid_arg "Ext_array.range"  
+  else Array.init (to_ - from + 1) (fun i -> i + from)
+
+let map2i f a b = 
+  let len = Array.length a in 
+  if len <> Array.length b then 
+    invalid_arg "Ext_array.map2i"  
+  else
+    Array.mapi (fun i a -> f i  a ( Array.unsafe_get b i )) a 
+
+let to_list_map f a =
+  let rec tolist i res =
+    if i < 0 then res else
+      let v = Array.unsafe_get a i in
+      tolist (i - 1)
+        (match f v with
+         | Some v -> v :: res
+         | None -> res) in
+  tolist (Array.length a - 1) []
+
+(**
+{[
+# rfind_with_index [|1;2;3|] (=) 2;;
+- : int = 1
+# rfind_with_index [|1;2;3|] (=) 1;;
+- : int = 0
+# rfind_with_index [|1;2;3|] (=) 3;;
+- : int = 2
+# rfind_with_index [|1;2;3|] (=) 4;;
+- : int = -1
+]}
+*)
+let rfind_with_index arr cmp v = 
+  let len = Array.length arr in 
+  let rec aux i = 
+    if i < 0 then i
+    else if  cmp (Array.unsafe_get arr i) v then i
+    else aux (i - 1) in 
+  aux (len - 1)
+
+let rfind_and_split arr cmp v = 
+  let i = rfind_with_index arr cmp v in 
+  if  i < 0 then 
+    `No_split 
+  else 
+    `Split (Array.sub arr 0 i , Array.sub arr  (i + 1 ) (Array.length arr - i - 1 ))
+
+end
+module Ext_file_pp : sig 
+#1 "ext_file_pp.mli"
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+type action = 
+  [
+    `skip
+  | `print of (out_channel -> int -> unit)
+  ]
+
+
+type interval = {
+  loc_start : Lexing.position ; 
+  loc_end : Lexing.position ; 
+  action : action 
+}
+
+val process_wholes : 
+  interval list ->
+  int -> ?line_directive:string -> in_channel -> out_channel -> unit
+
+val cpp_process_file : 
+  string -> (Lexing.position * Lexing.position) list -> out_channel -> unit
+
+
+(** Assume that there is no overlapp *)
+val interval_compare : 
+  interval -> interval -> int
+
+end = struct
+#1 "ext_file_pp.ml"
+(* Copyright (C) 2015-2016 Bloomberg Finance L.P.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Lesser General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * In addition to the permissions granted to you by the LGPL, you may combine
+ * or link a "work that uses the Library" with a publicly distributed version
+ * of this file to produce a combined library or application, then distribute
+ * that combined work under the terms of your choosing, with no requirement
+ * to comply with the obligations normally placed on you by section 4 of the
+ * LGPL version 3 (or the corresponding section of a later version of the LGPL
+ * should you choose to use a later version).
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. *)
+
+type action = 
+  [
+    `skip
+  | `print of (out_channel -> int -> unit)
+  ]
+
+
+type interval = {
+  loc_start : Lexing.position ; 
+  loc_end : Lexing.position ; 
+  action : action 
+}
+
+let interval_compare x y = 
+  Pervasives.compare (x.loc_start.pos_cnum : int) y.loc_start.pos_cnum
+
+let process_wholes 
+    (whole_intervals : interval list ) 
+    file_size
+    ?line_directive ic oc 
+  = 
+  let buf = Buffer.create 4096 in 
+  let rec aux (cur, line, offset)  wholes = 
+    seek_in ic cur ;
+    begin match line_directive with 
+      | Some fname -> 
+        output_string oc "# ";
+        output_string oc  (string_of_int line);
+        output_string oc " \"";
+        output_string oc fname; (* TOOD escape ? *)
+        output_string oc "\"\n";
+      | None -> ()
+    end;
+    if offset <> 0 then 
+      begin 
+        output_string oc (String.make offset ' ')
+      end; 
+    let print next = 
+      Buffer.add_channel buf ic (next - cur) ;
+      Buffer.output_buffer oc buf ; 
+      Buffer.clear buf 
+    in 
+    match wholes with 
+    | [] -> print file_size
+    | {
+      loc_start = 
+        {Lexing.pos_cnum = start   };
+      loc_end  = {Lexing.pos_cnum = stop; pos_bol ; pos_lnum} ;
+      action 
+    } :: xs  -> 
+      print start ;
+      let offset = stop - pos_bol in
+      begin match action with 
+      | `skip -> ()
+      | `print f -> f oc offset 
+      end;
+      aux (stop, pos_lnum, offset) xs 
+  in 
+    aux (0, 1, 0) whole_intervals
+
+
+let cpp_process_file fname whole_intervals oc = 
+  let ic = open_in_bin fname in
+  let file_size = in_channel_length ic in 
+  process_wholes ~line_directive:fname 
+    (List.map (fun (x,y) -> {loc_start = x ; loc_end = y; action = `skip}) whole_intervals)
+    file_size   ic oc ;
+  close_in ic 
 
 end
 module Ext_list : sig 
@@ -3051,17 +3125,19 @@ module Schemas = struct
   let ocamllex = "ocamllex"
   let bsc_flags = "bsc-flags"
 end
-type module_info = Binary_cache.module_info 
+
+
+
+(* Key is the path *)
+
+
+
 type 'a file_group = 
   { dir : string ;
     sources : 'a
   } 
 
 let main_ninja = "build.ninja"
-let (//) (x : string)  y =
-  if x = Filename.current_dir_name then y else 
-  if y = Filename.current_dir_name then x else 
-    Filename.concat x y
       
 module Default = struct
   let bsc = ref  "bsc.exe"
@@ -3077,54 +3153,18 @@ module Default = struct
   let bs_file_groups = ref []
 end
 
+(* More tests needed *)
+let convert_unix_path_to_windows p = 
+  String.map (function '/' ->'\\' | c -> c ) p 
+let convert_path  = 
+  if Sys.unix then fun p -> p else 
+  if Sys.win32 || Sys.cygwin then convert_unix_path_to_windows
+  else failwith ("Unknown OS :" ^ Sys.os_type)
+(* we only need convert the path in the begining*)
 
 
 
-
-
-(* TODO check duplication *)
-let module_info_of_ml exist ml : module_info =
-  match exist with 
-  | None -> { ml  = Ml ml ; mli = Mli_empty ; mll = None }
-  | Some x -> { x with ml = Ml ml}
-
-let module_info_of_re exist ml : module_info =
-  match exist with 
-  | None -> { ml  = Re ml ; mli = Mli_empty ; mll = None }
-  | Some x -> { x with ml = Re ml} 
-
-let module_info_of_mli exist mli : module_info = 
-  match exist with 
-  | None -> { mli  = Mli mli ; ml = Ml_empty ; mll = None }
-  | Some x -> { x with mli = Mli mli} 
-
-let module_info_of_rei exist mli : module_info = 
-  match exist with 
-  | None -> { mli  = Rei mli ; ml = Ml_empty ; mll = None }
-  | Some x -> { x with mli = Rei mli} 
-
-let module_info_of_mll exist mll : module_info = 
-  match exist with 
-  | None -> { mll  = Some mll ; ml = Ml_empty ; mli = Mli_empty }
-  | Some x -> { x with mll = Some mll} 
-
-
-let map_update ?dir map  name = 
-  let prefix  x = match dir with None -> x | Some v -> v // x in
-  let module_name = Ext_filename.module_name_of_file name in 
-  let aux v name = 
-    if Filename.check_suffix name ".ml" then module_info_of_ml v @@ prefix name  else
-    if Filename.check_suffix name ".mll" then module_info_of_mll v @@ prefix  name else 
-    if Filename.check_suffix name ".mli" then  module_info_of_mli v @@ prefix name else 
-    if Filename.check_suffix name ".re" then  module_info_of_re v @@ prefix name else 
-    if Filename.check_suffix name ".rei" then  module_info_of_rei v @@ prefix name else 
-      assert false   in 
-  match String_map.find module_name map with 
-  | exception Not_found 
-    -> String_map.add module_name (aux None name) map 
-  | v -> 
-    String_map.add module_name (aux (Some v) name)  map
-
+let (//) = Binary_cache.simple_concat
 
 let output_ninja 
     bsc
@@ -3232,7 +3272,7 @@ rule copy_resources
     in
 
     bs_files
-    |> String_map.iter (fun module_name ({mli; ml; mll } : module_info) -> 
+    |> String_map.iter (fun module_name ({mli; ml; mll } : Binary_cache.module_info) -> 
         let spit_out_ml (kind : [`Ml | `Re ])  file filename_sans_extension = 
           if kind = `Ml then 
             output_string oc 
@@ -3333,7 +3373,7 @@ rule copy_resources
 rule reload
       command = ${bsbuild} -init
 |};
-    output_string oc (Printf.sprintf "build build.ninja : reload | bsconfig.json\n" );
+    output_string oc ("build build.ninja : reload | bsconfig.json\n" );
 
     output_string oc (Printf.sprintf "build config : phony %s\n" 
                         (String.concat " "   !all_deps)) ;
@@ -3349,45 +3389,43 @@ let config_file_bak = "bsconfig.json.bak"
 let (|?)  m (key, cb) =
     m  |> Json_lexer.test key cb 
 
+let print_arrays file_array oc offset  =
+  let indent = String.make offset ' ' in 
+  let p_str s = 
+    output_string oc indent ; 
+    output_string oc s ;
+    output_string oc "\n"
+  in
+  match file_array with 
+  | []
+    -> output_string oc "[ ]\n"
+  | first::rest 
+    -> 
+    output_string oc "[ \n";
+    p_str ("\"" ^ first ^ "\"");
+    List.iter 
+      (fun f -> 
+         p_str (", \"" ^f ^ "\"")
+      ) rest;
+    p_str "]" 
+(* we need add a new line in the end,
+   otherwise it will be idented twice
+*)
+
 let rec handle_list_files update_queue dir s loc_start loc_end =  
   if Array.length s  = 0 then 
     begin 
       let files_array = Sys.readdir dir  in 
       let files, file_array =
         Array.fold_left (fun (acc, f) name -> 
-            if Filename.check_suffix name ".ml" ||
-               Filename.check_suffix name ".mll" ||
-               Filename.check_suffix name ".mli" ||
-               Filename.check_suffix name ".re" ||
-               Filename.check_suffix name ".rei" then 
-              (map_update ~dir acc name , name :: f)
-            else (acc,f)
+            let new_acc = Binary_cache.map_update ~dir acc name in 
+            if new_acc == acc then 
+              new_acc, f 
+            else new_acc, name :: f 
           ) (String_map.empty, []) files_array in 
       update_queue :=
         {Ext_file_pp.loc_start ;
-         loc_end; action = (`print (fun oc offset -> 
-            let indent = String.make offset ' ' in 
-            let p_str s = 
-              output_string oc indent ; 
-              output_string oc s ;
-              output_string oc "\n"
-            in
-            match file_array with 
-            | []
-              -> output_string oc "[ ]\n"
-            | first::rest 
-              -> 
-              output_string oc "[ \n";
-              p_str ("\"" ^ first ^ "\"");
-              List.iter 
-                (fun f -> 
-                   p_str (", \"" ^f ^ "\"")
-                ) rest;
-              p_str "]" 
-              (* we need add a new line in the end,
-                 otherwise it will be idented twice
-              *)
-          ))} :: !update_queue;
+         loc_end; action = (`print (print_arrays file_array))} :: !update_queue;
        files
     end
 
@@ -3395,7 +3433,7 @@ let rec handle_list_files update_queue dir s loc_start loc_end =
      Array.fold_left (fun acc s ->
         match s with 
         | `Str s -> 
-          map_update ~dir acc s
+          Binary_cache.map_update ~dir acc s
         | _ -> acc
       ) String_map.empty s
 
