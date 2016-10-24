@@ -57,24 +57,18 @@ type 'a file_group =
   } 
 
 let main_ninja = "build.ninja"
-      
-module Default = struct
-  let bsc = ref  "bsc.exe"
-  let bsbuild = ref "bsbuild.exe"
-  let bsdep = ref "bsdep.exe"
-  let ocamllex =  ref "ocamllex.opt"
-  let bs_external_includes = ref []
-  let package_name = ref None
-  let bsc_flags = ref []
-  let ppx_flags = ref []
-  let static_resources = ref []
-  let build_output_prefix = ref "_build"
-  let bs_file_groups = ref []
-end
+
+let get_list_string s = 
+  Ext_array.to_list_map (fun (x : Bs_json.t) ->
+      match x with 
+      | `Str x -> Some x 
+      | _ -> None
+    ) s   
 
 (* More tests needed *)
 let convert_unix_path_to_windows p = 
   String.map (function '/' ->'\\' | c -> c ) p 
+
 let convert_path  = 
   if Sys.unix then fun p -> p else 
   if Sys.win32 || Sys.cygwin then convert_unix_path_to_windows
@@ -82,8 +76,55 @@ let convert_path  =
 (* we only need convert the path in the begining*)
 
 
-
 let (//) = Binary_cache.simple_concat
+
+module Default = struct
+  let bsc = ref  "bsc.exe"
+  let bsbuild = ref "bsbuild.exe"
+  let bsdep = ref "bsdep.exe"
+  let ocamllex =  ref "ocamllex.opt"
+
+  let bs_external_includes = ref []
+
+
+  let package_name = ref None
+  let bsc_flags = ref []
+  let ppx_flags = ref []
+  let static_resources = ref []
+  let build_output_prefix = ref "_build"
+  let bs_file_groups = ref []
+
+  let set_bsc s = bsc := convert_path s
+  let set_bsbuild s = bsbuild := convert_path s 
+  let set_bsdep s = bsdep := convert_path s
+  let set_ocamllex s = ocamllex := convert_path s 
+  let set_static_resouces_from_array s = 
+    static_resources := Ext_array.to_list_map (fun x ->
+      match x with 
+      | `Str x -> Some (convert_path x)
+      | _ -> None) s 
+end
+
+let output_build  ?(implicit_deps=[]) ?(outputs=[]) ?(inputs=[]) ~output ~input  ~rule  oc = 
+  output_string oc "build "; 
+  output_string oc output ; 
+  outputs |> List.iter (fun s -> output_string oc " " ; output_string oc s  );
+  output_string oc " : ";
+  output_string oc rule;
+  output_string oc " ";
+  output_string oc input;
+  inputs |> List.iter (fun s ->   output_string oc " " ; output_string oc s);
+  begin match implicit_deps with 
+  | [] -> ()
+  | _ -> 
+    begin 
+      output_string oc " | "; 
+      implicit_deps 
+      |> 
+      List.iter (fun s -> output_string oc " "; output_string oc s )
+    end
+  end;
+  output_string oc "\n"
 
 let output_ninja 
     bsc
@@ -183,6 +224,7 @@ rule build_cmi
   description = Building cmi - ${out}
 |};
     if static_resources <> []   then 
+      (* How it will work under Windows? *)
       output_string oc {|
 rule copy_resources
   command = cp ${in}  ${out}
@@ -193,36 +235,40 @@ rule copy_resources
     bs_files
     |> String_map.iter (fun module_name ({mli; ml; mll } : Binary_cache.module_info) -> 
         let spit_out_ml (kind : [`Ml | `Re ])  file filename_sans_extension = 
-          if kind = `Ml then 
-            output_string oc 
-              (Printf.sprintf "build %s.mlast : build_ast %s\n" 
-                 (build_output_prefix // filename_sans_extension) file)
-          else 
-            output_string oc (Printf.sprintf "build %s.mlast : build_ast_from_reason_impl %s\n"
-                                (build_output_prefix // filename_sans_extension) file)
+          let input = file in 
+          let output_file_sans_extension = build_output_prefix // filename_sans_extension in
+          let output_mlast = output_file_sans_extension  ^ Literals.suffix_mlast 
+          in 
+          let output_mlastd = output_file_sans_extension ^ Literals.suffix_mlastd
+          in
+          let output_cmi = output_file_sans_extension ^ Literals.suffix_cmi in 
+          let output_cmj =  output_file_sans_extension ^ Literals.suffix_cmj in 
+          let rule = if kind = `Ml then "build_ast" else "build_ast_from_reason_impl" in 
+          output_build 
+              ~output:output_mlast
+              ~input
+              ~rule oc 
           ;
-          output_string oc (Printf.sprintf "build %s.mlast.d : build_deps %s.mlast\n" 
-                              (build_output_prefix // filename_sans_extension)
-                              (* output should always be marked explicitly,
-                                 otherwise the build system can not figure out clearly
-                                 however, for the command we don't need pass `-o`
-                              *)
-                              (build_output_prefix // filename_sans_extension));
-          all_deps := (build_output_prefix // filename_sans_extension ^ Literals.suffix_mlastd) :: !all_deps;
-          let rule_name , output, deps = 
-            let cmi_file =
-              build_output_prefix // filename_sans_extension ^ Literals.suffix_cmi
-            in
-            if mli = Mli_empty then "build_cmj_only",  cmi_file  , ""
-            else "build_cmj_cmi", "", cmi_file  in  
-          output_string oc 
-            (Printf.sprintf "build %s.cmj %s : %s %s.mlast |  %s\n"
-               (build_output_prefix // filename_sans_extension)
-               output
-               rule_name 
-               (build_output_prefix // filename_sans_extension)
-               deps
-            ) in 
+          (* output should always be marked explicitly,
+             otherwise the build system can not figure out clearly
+             however, for the command we don't need pass `-o`
+          *)
+
+          output_build 
+            ~output:output_mlastd
+            ~input:output_mlast
+            ~rule:"build_deps" oc ;
+          all_deps := output_mlastd :: !all_deps;
+          let rule_name , cm_outputs, deps = 
+            if mli = Mli_empty then "build_cmj_only", [  output_cmi]  , []
+            else "build_cmj_cmi", [], [output_cmi]  in  
+          output_build
+            ~output:output_cmj
+            ~outputs:cm_outputs
+            ~input:output_mlast 
+            ~implicit_deps:deps 
+            ~rule:rule_name oc 
+        in 
 
         begin match ml with 
           | Ml ml_file -> 
@@ -306,7 +352,7 @@ let config_file = "bsconfig.json"
 let config_file_bak = "bsconfig.json.bak"
 
 let (|?)  m (key, cb) =
-    m  |> Json_lexer.test key cb 
+    m  |> Bs_json.test key cb 
 
 let print_arrays file_array oc offset  =
   let indent = String.make offset ' ' in 
@@ -356,8 +402,8 @@ let rec handle_list_files update_queue dir s loc_start loc_end =
         | _ -> acc
       ) String_map.empty s
 
-and parsing_sources (file_groups : Json_lexer.t array) update_queue = 
-  let rec expect_file_group cwd (x : Json_lexer.t String_map.t )  =
+and parsing_sources (file_groups : Bs_json.t array) update_queue = 
+  let rec expect_file_group cwd (x : Bs_json.t String_map.t )  =
     let dir = ref cwd in
     let sources = ref String_map.empty in 
     let children = ref [] in 
@@ -380,7 +426,7 @@ and parsing_sources (file_groups : Json_lexer.t array) update_queue =
       |> ignore 
     in 
     {dir = !dir; sources = !sources} :: !children in 
-  Default.bs_file_groups := Ext_list.flat_map (fun x ->
+  Ext_list.flat_map (fun x ->
       match x with 
       | `Obj map ->  (expect_file_group Filename.current_dir_name map)
       | _ -> []
@@ -389,14 +435,8 @@ and parsing_sources (file_groups : Json_lexer.t array) update_queue =
 
 let write_ninja_file () = 
   let config_json_chan = open_in_bin config_file in 
-  let global_data = Json_lexer.parse_json_from_chan config_json_chan  in
+  let global_data = Bs_json.parse_json_from_chan config_json_chan  in
   let update_queue = ref [] in 
-  let get_list_string s = 
-    Ext_array.to_list_map (fun (x : Json_lexer.t) ->
-        match x with 
-        | `Str x -> Some x 
-        | _ -> None
-      ) s   in 
   let () = 
     match global_data with
     | `Obj map -> 
@@ -405,19 +445,22 @@ let write_ninja_file () =
       |?
       (Schemas.ocaml_config,   `Obj  begin fun m ->
           m
-          |?  (Schemas.bsc,  `Str (fun s -> Default.bsc := s))
-          |?  (Schemas.bsbuild,   `Str (fun s -> Default.bsbuild := s))
-          |?  (Schemas.bsdep,  `Str (fun s -> Default.bsdep := s))
-          |?  (Schemas.ocamllex, `Str (fun s -> Default.ocamllex :=  s))
+          |?  (Schemas.bsc,  `Str  Default.set_bsc)
+          |?  (Schemas.bsbuild,   `Str Default.set_bsbuild)
+          |?  (Schemas.bsdep,  `Str  Default.set_bsdep)
+          |?  (Schemas.ocamllex, `Str Default.set_ocamllex)
+          (* More design *)
           |?  (Schemas.bs_external_includes,
                `Arr (fun s -> Default.bs_external_includes := get_list_string s))
-
           |?  (Schemas.bsc_flags, `Arr (fun s -> Default.bsc_flags :=  get_list_string s ))
-          |?  (Schemas.ppx_flags, `Arr (fun s -> Default.ppx_flags := get_list_string s))
-          |?  (Schemas.bs_copy_or_symlink, `Arr (fun s -> 
-              Default.static_resources := get_list_string s))
-          |?  (Schemas.sources, `Arr (fun xs -> parsing_sources xs  update_queue))
 
+          (* More design *)
+          |?  (Schemas.ppx_flags, `Arr (fun s -> Default.ppx_flags := get_list_string s))
+
+
+          |?  (Schemas.bs_copy_or_symlink, `Arr Default.set_static_resouces_from_array)
+
+          |?  (Schemas.sources, `Arr (fun xs ->   Default.bs_file_groups := parsing_sources xs  update_queue))
           |> ignore
         end)
       |> ignore

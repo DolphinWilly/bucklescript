@@ -23,7 +23,7 @@ js_fold.ml:js_fold.mlp j.ml
 sexp_lexer.ml: sexp_lexer.gen.mll
 	@echo "Regenerating sexp_lexer.ml"
 	$(OCAMLLEX) $< -o $@
-json_lexer.ml: json_lexer.gen.mll
+bs_json.ml: bs_json.gen.mll
 	@echo "Regenerating sexp_lexer.ml"
 	$(OCAMLLEX) $< -o $@ || (rm $@ && exit 2)
 

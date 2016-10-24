@@ -6,7 +6,7 @@ ext/ext_filename
 ext/string_map
 depends/binary_cache
 ext/ext_array
+./bs_json
 ext/ext_file_pp
 ext/ext_list
-./json_lexer
 ./bsbuild_main

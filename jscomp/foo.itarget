@@ -12,7 +12,7 @@ js_pack.cmx
 js_cmi_datasets.cmx
 
 
-json_lexer.cmx
+bs_json.cmx
 sexp_lexer.cmx
 sexp_eval.cmx
 bsbuild_main.cmx
